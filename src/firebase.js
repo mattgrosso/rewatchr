@@ -3,7 +3,7 @@ import { getDatabase } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBOoP2gxy-NVGWjBsA-_66iNFnyOGn4JNw",
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
   authDomain: "rewatchr-85473.firebaseapp.com",
   projectId: "rewatchr-85473",
   storageBucket: "rewatchr-85473.firebasestorage.app",
