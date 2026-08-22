@@ -7,6 +7,7 @@ import HomeScreen from './components/HomeScreen.vue'
 import ShowsScreen from './components/ShowsScreen.vue'
 import BugButton from './components/BugButton.vue'
 import InstallButton from './components/InstallButton.vue'
+import { buildStamp } from './lib/buildStamp.js'
 
 const screen = ref('home') // 'home' | 'shows'
 const signInError = ref('')
@@ -72,6 +73,7 @@ const bugSnapshot = () => ({
       </button>
       <p v-else class="splash__tag">Warming up…</p>
       <p v-if="signInError" class="splash__error">{{ signInError }}</p>
+      <p class="build-stamp">{{ buildStamp() }}</p>
     </main>
   </template>
   <template v-else>
@@ -95,6 +97,7 @@ const bugSnapshot = () => ({
         <p class="topbar__email">{{ store.user.email }}</p>
         <p v-if="store.syncError" class="topbar__sync">⚠️ {{ store.syncError }}</p>
         <button class="btn btn--ghost" @click="signOut">Sign out</button>
+        <p class="build-stamp">{{ buildStamp() }}</p>
       </div>
     </header>
     <HomeScreen v-if="screen === 'home'" @manage="screen = 'shows'" />
@@ -223,5 +226,14 @@ const bugSnapshot = () => ({
 .topbar__sync {
   color: var(--danger);
   font-size: 12px;
+}
+
+/* The house build stamp: present, readable, never competing for attention. */
+.build-stamp {
+  font-size: 11px;
+  color: var(--ink-soft);
+  opacity: 0.75;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 </style>
