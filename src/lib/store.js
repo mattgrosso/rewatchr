@@ -122,6 +122,7 @@ export const setEpisodeLiked = (showId, ep, liked) => {
       episode: ep.episode,
       name: ep.name ?? '',
       still: ep.still ?? null,
+      rating: ep.rating ?? null,
     }
   } else {
     delete episodes[slot]

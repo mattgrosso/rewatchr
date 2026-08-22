@@ -50,6 +50,7 @@ export const seasonEpisodes = async (id, seasonNumber) => {
     name: ep.name,
     overview: ep.overview,
     still: ep.still_path,
+    rating: ep.vote_count > 0 ? ep.vote_average : null,
   }))
 }
 

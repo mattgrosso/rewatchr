@@ -2,6 +2,7 @@
 // The dealt episode: art, title, and where it's streaming right now.
 import { computed } from 'vue'
 import { img } from '../lib/tmdb.js'
+import { formatRating } from '../lib/rating.js'
 
 const props = defineProps({
   pick: { type: Object, required: true },
@@ -26,6 +27,9 @@ const epCode = computed(() => `S${props.pick.ep.season} · E${props.pick.ep.epis
         <p class="result__ep">
           <span class="result__code">{{ epCode }}</span>
           {{ pick.ep.name }}
+          <span v-if="formatRating(pick.ep.rating)" class="result__rating">
+            ★ {{ formatRating(pick.ep.rating) }}
+          </span>
         </p>
         <p v-if="pick.recycled" class="result__recycled">
           Fresh lap — you've seen the whole pool, so everything's back in play.
@@ -118,6 +122,14 @@ const epCode = computed(() => `S${props.pick.ep.season} · E${props.pick.ep.epis
   color: var(--amber);
   font-weight: 700;
   margin-right: 8px;
+}
+
+.result__rating {
+  color: var(--amber);
+  font-weight: 700;
+  font-size: 14px;
+  margin-left: 6px;
+  white-space: nowrap;
 }
 
 .result__recycled {

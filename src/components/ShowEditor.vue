@@ -5,6 +5,7 @@
 import { onMounted, ref } from 'vue'
 import { showSeasons, seasonEpisodes } from '../lib/tmdb.js'
 import { setEpisodeLiked, isEpisodeLiked } from '../lib/store.js'
+import { formatRating, ratingTier } from '../lib/rating.js'
 
 const props = defineProps({
   show: { type: Object, required: true },
@@ -96,6 +97,13 @@ const toggleEpisode = (ep) => {
           />
           <span class="editor__ep-num">{{ ep.episode }}</span>
           <span class="editor__ep-name">{{ ep.name }}</span>
+          <span
+            v-if="formatRating(ep.rating)"
+            class="editor__ep-rating"
+            :class="`editor__ep-rating--${ratingTier(ep.rating)}`"
+          >
+            ★ {{ formatRating(ep.rating) }}
+          </span>
         </label>
       </div>
     </div>
@@ -183,5 +191,24 @@ const toggleEpisode = (ep) => {
 
 .editor__ep-name {
   flex: 1;
+}
+
+.editor__ep-rating {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.editor__ep-rating--great {
+  color: var(--amber);
+}
+
+.editor__ep-rating--good {
+  color: var(--ink);
+}
+
+.editor__ep-rating--meh {
+  color: var(--ink-soft);
 }
 </style>
