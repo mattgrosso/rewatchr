@@ -30,13 +30,23 @@ export const formatBuildTime = (value, now = new Date()) => {
   return `${MONTHS[date.getMonth()]} ${date.getDate()}${year}, ${hour}:${pad(date.getMinutes())} ${meridiem}`
 }
 
+// A semver gets a "v"; a git sha is left bare, because "va1b2c3d" is
+// nonsense. Rewatchr only ever shows a semver, but this module is the
+// reference the other ten apps copy, and several of them stamp a sha — so the
+// rule lives here rather than being re-derived (and re-argued) in each one.
+export const formatVersion = (version) => {
+  if (!version) return null
+  return /^\d/.test(version) ? `v${version}` : version
+}
+
 // The one line every app renders: "v1.0.0 · built Aug 22, 1:32 AM".
 // Degrades rather than disappearing — a missing version or an unparseable
 // timestamp still leaves something true on screen.
 export const buildStampText = ({ version, buildTime, now } = {}) => {
   const when = formatBuildTime(buildTime, now)
   const parts = []
-  if (version) parts.push(`v${version}`)
+  const label = formatVersion(version)
+  if (label) parts.push(label)
   if (when) parts.push(`built ${when}`)
   return parts.join(' · ')
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatBuildTime, buildStampText } from '../src/lib/buildStamp.js'
+import { formatBuildTime, buildStampText, formatVersion } from '../src/lib/buildStamp.js'
 
 // Fixed local-time instants so these don't drift with the clock or the box's
 // timezone: constructed from local parts, read back as local.
@@ -35,7 +35,30 @@ describe('formatBuildTime', () => {
   })
 })
 
+describe('formatVersion', () => {
+  it('prefixes a semver with v', () => {
+    expect(formatVersion('1.0.0')).toBe('v1.0.0')
+    expect(formatVersion('1.96.5')).toBe('v1.96.5')
+  })
+
+  it('leaves a git sha bare — "va1b2c3d" would be nonsense', () => {
+    expect(formatVersion('a1b2c3d')).toBe('a1b2c3d')
+    expect(formatVersion('ae3c5ae-dirty')).toBe('ae3c5ae-dirty')
+  })
+
+  it('has nothing to say about a missing version', () => {
+    expect(formatVersion(null)).toBeNull()
+    expect(formatVersion('')).toBeNull()
+  })
+})
+
 describe('buildStampText', () => {
+  it('renders a sha version without the v prefix', () => {
+    expect(
+      buildStampText({ version: 'a1b2c3d', buildTime: localTime(2026, 8, 22, 1, 32), now: NOW }),
+    ).toBe('a1b2c3d · built Aug 22, 1:32 AM')
+  })
+
   it('is the house format: version, then when it was built', () => {
     expect(
       buildStampText({ version: '1.0.0', buildTime: localTime(2026, 8, 22, 1, 32), now: NOW }),
