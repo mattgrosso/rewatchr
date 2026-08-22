@@ -27,6 +27,36 @@ Live at **https://rewatchr-85473.web.app** (Firebase Hosting).
   node, offline stash, triaged with `yarn fetch-bug-reports` /
   `yarn resolve-bug-report <id>`.
 
+## Running it signed in (dev)
+
+Everything past the splash is behind a Google popup, which browser automation
+can't drive — so there's a dev-only bypass (`src/lib/devAuth.js`).
+
+```
+yarn dev:signed-in          # opens straight into the app as a fake local user
+yarn dev                    # normal: real Google sign-in
+```
+
+Or, from a normal `yarn dev`, visit `/?dev=1` (sticks for that browser until
+`/?dev=0` or Sign out).
+
+- **No credentials anywhere.** The dev user is invented on the spot; there is
+  no test account, nothing to keep out of git, and no path to the real
+  database — the store is marked `localOnly`, so a dev session reads and
+  writes localStorage only.
+- **An empty pool self-seeds** (`src/lib/devSeed.js`) with real TMDB data
+  chosen to exercise the app: two genuine two-parters plus standalones.
+- **It cannot ship.** Every reference sits behind `import.meta.env.DEV`, which
+  Vite replaces with `false` when building, so the modules are dropped rather
+  than merely disabled. `yarn verify-dev-excluded` greps the built bundle to
+  prove it and runs as part of `yarn deploy`.
+
+The house pattern in Cinema Roll and Movie Hat is different — `yarn
+mint-test-token` signs a browser in as a real tester account via an
+Admin-SDK-minted custom token, which tests the live rules and real sync. That
+needs a service-account key for this project; worth adding if Rewatchr ever
+grows sharing or anything else where the rules are the thing under test.
+
 ## Commands
 
 ```

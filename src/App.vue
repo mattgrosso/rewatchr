@@ -12,7 +12,19 @@ const screen = ref('home') // 'home' | 'shows'
 const signInError = ref('')
 const menuOpen = ref(false)
 
-onMounted(() => {
+onMounted(async () => {
+  // The dev sign-in bypass (lib/devAuth.js). Every reference to it sits
+  // behind `import.meta.env.DEV`, which Vite replaces with `false` in a
+  // production build — so the whole branch, and the modules it reaches, are
+  // dropped from the shipped bundle rather than merely disabled. A test
+  // greps the build to keep it that way.
+  if (import.meta.env.DEV) {
+    const dev = await import('./lib/devAuth.js')
+    if (dev.devAuthEnabled()) {
+      await dev.startDevSession()
+      return
+    }
+  }
   watchAuth((user) => {
     store.authReady = true
     if (user) void loadForUser(user)
@@ -33,6 +45,11 @@ const signIn = async () => {
 
 const signOut = async () => {
   menuOpen.value = false
+  if (import.meta.env.DEV && store.localOnly) {
+    const dev = await import('./lib/devAuth.js')
+    dev.endDevSession()
+    return
+  }
   await signOutUser()
 }
 

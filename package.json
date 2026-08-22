@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run",
-    "deploy": "yarn build && firebase deploy --only hosting,database",
+    "dev:signed-in": "VITE_DEV_AUTH=1 vite",
+    "verify-dev-excluded": "node scripts/verify-dev-excluded.mjs",
+    "deploy": "yarn build && yarn verify-dev-excluded && firebase deploy --only hosting,database",
     "make-icons": "node scripts/make-icons.mjs",
     "fetch-bug-reports": "node scripts/fetch-bug-reports.mjs",
     "resolve-bug-report": "node scripts/resolve-bug-report.mjs"

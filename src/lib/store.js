@@ -15,6 +15,11 @@ export const store = reactive({
   user: null,
   authReady: false,
   loaded: false,
+  // Set only by the dev sign-in bypass (lib/devAuth.js): keeps everything in
+  // localStorage so a dev session can never read or write the real database.
+  // A plain boolean rather than a check against the dev user, so nothing
+  // dev-related has to be imported by production code.
+  localOnly: false,
   shows: {},
   watched: {},
   history: [],
@@ -47,7 +52,7 @@ const writeCache = () => {
 let pushTimer = null
 const schedulePush = () => {
   writeCache()
-  if (!store.user) return
+  if (!store.user || store.localOnly) return
   clearTimeout(pushTimer)
   pushTimer = setTimeout(async () => {
     try {
@@ -70,6 +75,10 @@ export const loadForUser = async (user) => {
   store.loaded = false
   const local = normalizeData(readCache(user.uid))
   apply(local)
+  if (store.localOnly) {
+    store.loaded = true
+    return
+  }
   try {
     const remote = await fetchUserData(user.uid)
     apply(mergeData(local, remote))

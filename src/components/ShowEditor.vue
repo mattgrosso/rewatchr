@@ -51,7 +51,12 @@ const scrollSeasonIntoView = async (number) => {
   const bar = document.querySelector('.topbar')
   const offset = (bar?.getBoundingClientRect().height ?? 0) + 8
   const top = el.getBoundingClientRect().top + window.scrollY - offset
-  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+  // Deliberately instant, not smooth. Verified in a browser: this page's
+  // document scroller ignores `behavior: 'smooth'` outright — the call is
+  // made, the page never moves — which made the first version of this fix a
+  // silent no-op, exactly the bug it was meant to cure. An instant jump
+  // straight after a tap is also what native list UIs do.
+  window.scrollTo({ top: Math.max(0, top) })
 }
 
 const toggleSeason = async (number, { scroll = true } = {}) => {

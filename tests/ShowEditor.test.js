@@ -127,8 +127,11 @@ describe('opening a season', () => {
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     expect(window.scrollTo).toHaveBeenCalled()
-    expect(window.scrollTo.mock.calls[0][0]).toMatchObject({ behavior: 'smooth' })
-    expect(window.scrollTo.mock.calls[0][0].top).toBeGreaterThanOrEqual(0)
+    const [options] = window.scrollTo.mock.calls[0]
+    expect(options.top).toBeGreaterThanOrEqual(0)
+    // Must not ask for a smooth scroll: this page's document scroller
+    // ignores it, so requesting one means the page never moves at all.
+    expect(options.behavior).toBeUndefined()
   })
 
   it('does not scroll when a season is merely being closed', async () => {
