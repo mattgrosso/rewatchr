@@ -12,6 +12,11 @@ const pick = ref(null)
 const providers = ref(null)
 const drawing = ref(false)
 
+// Episodes dealt but passed on ("Deal again") this session — the redraw
+// shouldn't hand back what you just turned down. Capped, session-only;
+// actual no-repeat tracking is the watched ledger.
+const passedKeys = ref([])
+
 const counts = computed(() => poolCounts(store.shows, store.watched))
 const hasPool = computed(() => counts.value.total > 0)
 
@@ -19,8 +24,11 @@ const draw = async () => {
   if (drawing.value) return
   drawing.value = true
   providers.value = null
+  if (pick.value) {
+    passedKeys.value = [...passedKeys.value, pick.value.key].slice(-15)
+  }
   // A beat of suspense: the shuffle is instant, the anticipation shouldn't be.
-  const result = pickEpisode(store.shows, store.watched)
+  const result = pickEpisode(store.shows, store.watched, Math.random, passedKeys.value)
   await new Promise((resolve) => setTimeout(resolve, 650))
   pick.value = result
   drawing.value = false

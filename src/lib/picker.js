@@ -35,7 +35,12 @@ const recentKeys = (watched, count) =>
 
 // Returns { show, ep, key, recycled } or null when no episodes are liked at
 // all. `rand` is injectable for tests; defaults to Math.random.
-export const pickEpisode = (shows, watched, rand = Math.random) => {
+//
+// `avoidKeys` holds episodes dealt-but-passed-on this session ("Deal again"),
+// so a redraw never hands back the one you just turned down. It's a soft
+// exclusion: if avoiding them would empty the pool, they come back in rather
+// than the button going dead.
+export const pickEpisode = (shows, watched, rand = Math.random, avoidKeys = []) => {
   const { total, unwatched } = poolCounts(shows, watched)
   if (!total) return null
 
@@ -49,13 +54,16 @@ export const pickEpisode = (shows, watched, rand = Math.random) => {
     recycled = true
     excluded = new Set(recentKeys(watched, Math.min(5, total - 1)))
   }
+  for (const key of avoidKeys) excluded.add(key)
 
   const candidates = []
   for (const show of Object.values(shows)) {
     const eps = likedEpisodes(show).filter((ep) => !excluded.has(episodeKey(show.id, ep)))
     if (eps.length) candidates.push({ show, eps })
   }
-  if (!candidates.length) return null
+  if (!candidates.length) {
+    return avoidKeys.length ? pickEpisode(shows, watched, rand) : null
+  }
 
   const pickFrom = (list) => list[Math.min(list.length - 1, Math.floor(rand() * list.length))]
   const { show, eps } = pickFrom(candidates)

@@ -89,6 +89,20 @@ describe('pickEpisode', () => {
     expect(pick.recycled).toBe(true)
   })
 
+  it('avoids passed-on episodes while alternatives remain', () => {
+    // Everything avoided except one — that one must be dealt.
+    const avoid = ['456|s4e12', '456|s5e2', '456|s6e6']
+    for (let i = 0; i < 30; i++) {
+      expect(pickEpisode(shows, {}, Math.random, avoid).key).toBe('1400|s4e11')
+    }
+  })
+
+  it('avoiding everything falls back to the full pool, not a dead button', () => {
+    const avoid = ['456|s4e12', '456|s5e2', '456|s6e6', '1400|s4e11']
+    const pick = pickEpisode(shows, {}, Math.random, avoid)
+    expect(pick).not.toBeNull()
+  })
+
   it('rand at the extremes stays in bounds', () => {
     expect(pickEpisode(shows, {}, () => 0)).not.toBeNull()
     expect(pickEpisode(shows, {}, () => 0.999999)).not.toBeNull()
