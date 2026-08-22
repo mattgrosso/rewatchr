@@ -2,9 +2,9 @@
 // Per-show episode picker: seasons load lazily from TMDB; each episode is a
 // checkbox, with a whole-season toggle for the "honestly, all of season 4"
 // cases.
-import { onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { showSeasons, seasonEpisodes } from '../lib/tmdb.js'
-import { setEpisodeLiked, isEpisodeLiked } from '../lib/store.js'
+import { setEpisodeLiked, setEpisodesLiked, isEpisodeLiked } from '../lib/store.js'
 import { formatRating, ratingTier } from '../lib/rating.js'
 
 const props = defineProps({
@@ -16,13 +16,23 @@ const openSeason = ref(null)
 const episodes = ref({}) // seasonNumber -> [{season, episode, name, still}]
 const loading = ref(false)
 const error = ref('')
+const wholeShowBusy = ref(false)
+const seasonEls = ref({})
+
+const setSeasonEl = (number, el) => {
+  if (el) seasonEls.value[number] = el
+}
 
 onMounted(async () => {
   loading.value = true
   try {
     const details = await showSeasons(props.show.id)
     seasons.value = details.seasons
-    if (details.seasons.length === 1) await toggleSeason(details.seasons[0].number)
+    // A one-season show opens itself, but must not yank the page around:
+    // the card was just tapped and is already where the eye is.
+    if (details.seasons.length === 1) {
+      await toggleSeason(details.seasons[0].number, { scroll: false })
+    }
   } catch {
     error.value = 'Could not load seasons — is the network up?'
   } finally {
@@ -30,7 +40,21 @@ onMounted(async () => {
   }
 })
 
-const toggleSeason = async (number) => {
+// Bug report (Matt, 2026-08-22): opening a second season closes the first,
+// which pulls the page up and can leave the season you just opened above the
+// fold. Scroll its header to just under the sticky top bar — measured rather
+// than hard-coded, since the bar grows by the phone's safe-area inset.
+const scrollSeasonIntoView = async (number) => {
+  await nextTick()
+  const el = seasonEls.value[number]
+  if (!el?.getBoundingClientRect) return
+  const bar = document.querySelector('.topbar')
+  const offset = (bar?.getBoundingClientRect().height ?? 0) + 8
+  const top = el.getBoundingClientRect().top + window.scrollY - offset
+  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' })
+}
+
+const toggleSeason = async (number, { scroll = true } = {}) => {
   if (openSeason.value === number) {
     openSeason.value = null
     return
@@ -42,7 +66,65 @@ const toggleSeason = async (number) => {
     } catch {
       error.value = 'Could not load that season.'
       openSeason.value = null
+      return
     }
+  }
+  // After the episodes render — they're what moves everything below.
+  if (scroll) await scrollSeasonIntoView(number)
+}
+
+// --- the whole show, in one tap -----------------------------------------
+// Bug report (Matt, 2026-08-22): "We have whole season buttons, let's get a
+// whole show button." Seinfeld is nine seasons of tapping otherwise.
+
+const totalEpisodes = computed(() =>
+  seasons.value.reduce((sum, season) => sum + (season.episodeCount || 0), 0),
+)
+const allSeasonsLoaded = computed(
+  () => seasons.value.length > 0 && seasons.value.every((s) => episodes.value[s.number]),
+)
+const knownEpisodes = computed(() => seasons.value.flatMap((s) => episodes.value[s.number] || []))
+
+// Once every season is loaded the answer is exact; before that, fall back to
+// TMDB's per-season counts so the button can label itself without 9 fetches.
+const wholeShowLiked = computed(() => {
+  if (allSeasonsLoaded.value && knownEpisodes.value.length) {
+    return knownEpisodes.value.every((ep) => isEpisodeLiked(props.show.id, ep))
+  }
+  const liked = Object.keys(props.show.episodes || {}).length
+  return totalEpisodes.value > 0 && liked >= totalEpisodes.value
+})
+
+const toggleWholeShow = async () => {
+  if (wholeShowBusy.value || !seasons.value.length) return
+  const turnOn = !wholeShowLiked.value
+  wholeShowBusy.value = true
+  error.value = ''
+  try {
+    if (turnOn) {
+      const missing = seasons.value.filter((season) => !episodes.value[season.number])
+      const fetched = await Promise.all(
+        missing.map((season) => seasonEpisodes(props.show.id, season.number)),
+      )
+      const merged = { ...episodes.value }
+      missing.forEach((season, i) => {
+        merged[season.number] = fetched[i]
+      })
+      episodes.value = merged
+      setEpisodesLiked(
+        props.show.id,
+        seasons.value.flatMap((season) => merged[season.number] || []),
+        true,
+      )
+    } else {
+      // Turning it off needs no fetching at all — the pool already lists
+      // exactly what to remove.
+      setEpisodesLiked(props.show.id, Object.values(props.show.episodes || {}), false)
+    }
+  } catch {
+    error.value = 'Could not load every season — try that again?'
+  } finally {
+    wholeShowBusy.value = false
   }
 }
 
@@ -56,8 +138,7 @@ const seasonAllLiked = (number) => {
 
 const toggleWholeSeason = (number) => {
   const eps = episodes.value[number] || []
-  const turnOn = !seasonAllLiked(number)
-  for (const ep of eps) setEpisodeLiked(props.show.id, ep, turnOn)
+  setEpisodesLiked(props.show.id, eps, !seasonAllLiked(number))
 }
 
 const toggleEpisode = (ep) => {
@@ -69,7 +150,23 @@ const toggleEpisode = (ep) => {
   <div class="editor">
     <p v-if="loading" class="editor__note">Loading seasons…</p>
     <p v-if="error" class="editor__error">{{ error }}</p>
-    <div v-for="season in seasons" :key="season.number" class="editor__season">
+    <button
+      v-if="seasons.length"
+      class="editor__whole-show"
+      :class="{ 'editor__whole-show--on': wholeShowLiked }"
+      :disabled="wholeShowBusy"
+      @click="toggleWholeShow"
+    >
+      <template v-if="wholeShowBusy">Loading every season…</template>
+      <template v-else-if="wholeShowLiked">✓ The whole show is in — tap to clear it</template>
+      <template v-else>+ Add the whole show{{ totalEpisodes ? ` (${totalEpisodes})` : '' }}</template>
+    </button>
+    <div
+      v-for="season in seasons"
+      :key="season.number"
+      :ref="(el) => setSeasonEl(season.number, el)"
+      class="editor__season"
+    >
       <button class="editor__season-head" @click="toggleSeason(season.number)">
         <span>{{ season.name }}</span>
         <span class="editor__season-meta">
@@ -127,6 +224,27 @@ const toggleEpisode = (ep) => {
 
 .editor__error {
   color: var(--danger);
+}
+
+.editor__whole-show {
+  width: 100%;
+  border: 1px dashed var(--amber);
+  border-radius: 10px;
+  padding: 10px;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--amber);
+}
+
+.editor__whole-show--on {
+  border-style: solid;
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.editor__whole-show:disabled {
+  opacity: 0.6;
+  border-color: var(--line);
+  color: var(--ink-soft);
 }
 
 .editor__season {

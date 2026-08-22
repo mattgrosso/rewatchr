@@ -9,6 +9,8 @@
 // pool is watched, at which point it recycles: everything is fair game again
 // except the handful you saw most recently.
 
+import { multiPartGroup } from './multipart.js'
+
 export const episodeKey = (showId, ep) => `${showId}|s${ep.season}e${ep.episode}`
 
 const likedEpisodes = (show) => Object.values(show.episodes || {})
@@ -67,6 +69,18 @@ export const pickEpisode = (shows, watched, rand = Math.random, avoidKeys = []) 
 
   const pickFrom = (list) => list[Math.min(list.length - 1, Math.floor(rand() * list.length))]
   const { show, eps } = pickFrom(candidates)
-  const ep = pickFrom(eps)
-  return { show, ep, key: episodeKey(show.id, ep), recycled }
+  const drawn = pickFrom(eps)
+
+  // A two-parter is dealt whole, and always from part one — landing on
+  // "The Trip (2)" and being told to start there would be nonsense.
+  const parts = multiPartGroup(likedEpisodes(show), drawn)
+  const ep = parts[0]
+  return {
+    show,
+    ep,
+    parts,
+    key: episodeKey(show.id, ep),
+    keys: parts.map((part) => episodeKey(show.id, part)),
+    recycled,
+  }
 }

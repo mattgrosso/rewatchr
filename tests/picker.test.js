@@ -103,6 +103,26 @@ describe('pickEpisode', () => {
     expect(pick).not.toBeNull()
   })
 
+  it('deals a two-parter whole, and always starting at part one', () => {
+    const twoParter = show(1400, 'Seinfeld', [
+      ep(4, 1, 'The Trip (1)'),
+      ep(4, 2, 'The Trip (2)'),
+    ])
+    for (let i = 0; i < 30; i++) {
+      const pick = pickEpisode({ 1400: twoParter }, {})
+      expect(pick.parts).toHaveLength(2)
+      expect(pick.ep.name).toBe('The Trip (1)') // never handed the back half
+      expect(pick.keys).toEqual(['1400|s4e1', '1400|s4e2'])
+      expect(pick.key).toBe('1400|s4e1')
+    }
+  })
+
+  it('a standalone episode reports itself as a single part', () => {
+    const pick = pickEpisode({ 1400: seinfeld }, {})
+    expect(pick.parts).toEqual([pick.ep])
+    expect(pick.keys).toEqual([pick.key])
+  })
+
   it('rand at the extremes stays in bounds', () => {
     expect(pickEpisode(shows, {}, () => 0)).not.toBeNull()
     expect(pickEpisode(shows, {}, () => 0.999999)).not.toBeNull()

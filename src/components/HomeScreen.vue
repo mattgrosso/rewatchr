@@ -25,7 +25,7 @@ const draw = async () => {
   drawing.value = true
   providers.value = null
   if (pick.value) {
-    passedKeys.value = [...passedKeys.value, pick.value.key].slice(-15)
+    passedKeys.value = [...passedKeys.value, ...(pick.value.keys || [pick.value.key])].slice(-15)
   }
   // A beat of suspense: the shuffle is instant, the anticipation shouldn't be.
   const result = pickEpisode(store.shows, store.watched, Math.random, passedKeys.value)
@@ -47,7 +47,8 @@ const watchedIt = () => {
 }
 
 const recent = computed(() => store.history.slice(0, 8))
-const epLabel = (h) => `S${h.season}E${h.episode}`
+const epLabel = (h) =>
+  h.partCount > 1 ? `S${h.season}E${h.episode} +${h.partCount - 1}` : `S${h.season}E${h.episode}`
 </script>
 
 <template>

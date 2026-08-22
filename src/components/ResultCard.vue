@@ -15,6 +15,13 @@ const art = computed(
   () => img(props.pick.ep.still, 'w780') || img(props.pick.show.poster, 'w500'),
 )
 const epCode = computed(() => `S${props.pick.ep.season} · E${props.pick.ep.episode}`)
+
+// A two-parter arrives as several episodes; everything else as one.
+const parts = computed(() => props.pick.parts || [props.pick.ep])
+const partLabel = computed(() =>
+  parts.value.length === 2 ? 'Two-parter' : `${parts.value.length}-part story`,
+)
+const code = (ep) => `S${ep.season} · E${ep.episode}`
 </script>
 
 <template>
@@ -24,7 +31,19 @@ const epCode = computed(() => `S${props.pick.ep.season} · E${props.pick.ep.epis
       <img v-if="art" class="result__art" :src="art" alt="" />
       <div class="result__body">
         <h2 class="result__show">{{ pick.show.name }}</h2>
-        <p class="result__ep">
+        <template v-if="parts.length > 1">
+          <p class="result__multi">{{ partLabel }} — watch them back to back</p>
+          <ol class="result__parts">
+            <li v-for="part in parts" :key="code(part)">
+              <span class="result__code">{{ code(part) }}</span>
+              {{ part.name }}
+              <span v-if="formatRating(part.rating)" class="result__rating">
+                ★ {{ formatRating(part.rating) }}
+              </span>
+            </li>
+          </ol>
+        </template>
+        <p v-else class="result__ep">
           <span class="result__code">{{ epCode }}</span>
           {{ pick.ep.name }}
           <span v-if="formatRating(pick.ep.rating)" class="result__rating">
@@ -122,6 +141,27 @@ const epCode = computed(() => `S${props.pick.ep.season} · E${props.pick.ep.epis
   color: var(--amber);
   font-weight: 700;
   margin-right: 8px;
+}
+
+.result__multi {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--amber);
+}
+
+.result__parts {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.result__parts li {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 15px;
 }
 
 .result__rating {

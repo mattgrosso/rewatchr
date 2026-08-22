@@ -131,11 +131,42 @@ export const setEpisodeLiked = (showId, ep, liked) => {
   schedulePush()
 }
 
+// Bulk version, for the whole-season and whole-show toggles. One store write
+// and one sync push however many episodes are involved — doing this an
+// episode at a time would copy the whole show object 180 times for Seinfeld.
+export const setEpisodesLiked = (showId, eps, liked) => {
+  const show = store.shows[showId]
+  if (!show || !eps.length) return
+  const episodes = { ...(show.episodes || {}) }
+  for (const ep of eps) {
+    const slot = `s${ep.season}e${ep.episode}`
+    if (liked) {
+      episodes[slot] = {
+        season: ep.season,
+        episode: ep.episode,
+        name: ep.name ?? '',
+        still: ep.still ?? null,
+        rating: ep.rating ?? null,
+      }
+    } else {
+      delete episodes[slot]
+    }
+  }
+  store.shows = { ...store.shows, [showId]: { ...show, episodes } }
+  schedulePush()
+}
+
 export const isEpisodeLiked = (showId, ep) =>
   Boolean(store.shows[showId]?.episodes?.[`s${ep.season}e${ep.episode}`])
 
+// A two-parter is one sitting: every part it dealt is marked watched, so the
+// other half can't come back around on its own tomorrow.
 export const markWatched = (pick) => {
-  store.watched = { ...store.watched, [pick.key]: Date.now() }
+  const at = Date.now()
+  const keys = pick.keys?.length ? pick.keys : [pick.key]
+  const watched = { ...store.watched }
+  for (const key of keys) watched[key] = at
+  store.watched = watched
   store.history = [
     {
       key: pick.key,
@@ -144,7 +175,8 @@ export const markWatched = (pick) => {
       season: pick.ep.season,
       episode: pick.ep.episode,
       epName: pick.ep.name ?? '',
-      at: Date.now(),
+      partCount: keys.length,
+      at,
     },
     ...store.history,
   ].slice(0, HISTORY_CAP)
