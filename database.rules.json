@@ -1,0 +1,20 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "users": {
+      "$uid": {
+        ".read": "auth !== null && auth.uid === $uid",
+        ".write": "auth !== null && auth.uid === $uid"
+      }
+    },
+    "bugReports": {
+      ".read": false,
+      ".write": false,
+      "$reportId": {
+        ".write": "!data.exists()",
+        ".validate": "newData.hasChildren(['transcript'])"
+      }
+    }
+  }
+}
