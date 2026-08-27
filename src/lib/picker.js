@@ -15,11 +15,33 @@ export const episodeKey = (showId, ep) => `${showId}|s${ep.season}e${ep.episode}
 
 const likedEpisodes = (show) => Object.values(show.episodes || {})
 
+// Narrow the pool to one show, for "I'm in the mood for Seinfeld".
+//
+// Requested via the bug button: "It would be nice if there was a way to draw
+// randomly from within a certain subset so I could draw just from a single
+// show. If I wanted to whenever I was feeling an episode of that show."
+//
+// Applied by shrinking the shows map and then running the ordinary algorithm
+// over it, rather than by adding a branch inside the algorithm. Everything
+// downstream keeps working unchanged and for the same reasons: the no-repeat
+// exclusion, the recycle-when-exhausted lap, and the two-parter grouping all
+// scope themselves to the smaller pool automatically. The show-first weighting
+// simply has nothing left to weigh.
+//
+// Matched on show.id rather than the map key, so it doesn't depend on how the
+// store happens to key things.
+export const scopeToShow = (shows, showId) => {
+  if (!showId) return shows || {}
+  return Object.fromEntries(
+    Object.entries(shows || {}).filter(([, show]) => String(show?.id) === String(showId)),
+  )
+}
+
 // How many liked episodes exist / remain unwatched, for the button caption.
-export const poolCounts = (shows, watched) => {
+export const poolCounts = (shows, watched, showId = null) => {
   let total = 0
   let unwatched = 0
-  for (const show of Object.values(shows || {})) {
+  for (const show of Object.values(scopeToShow(shows, showId))) {
     for (const ep of likedEpisodes(show)) {
       total += 1
       if (!watched?.[episodeKey(show.id, ep)]) unwatched += 1
@@ -42,8 +64,9 @@ const recentKeys = (watched, count) =>
 // so a redraw never hands back the one you just turned down. It's a soft
 // exclusion: if avoiding them would empty the pool, they come back in rather
 // than the button going dead.
-export const pickEpisode = (shows, watched, rand = Math.random, avoidKeys = []) => {
-  const { total, unwatched } = poolCounts(shows, watched)
+export const pickEpisode = (shows, watched, rand = Math.random, avoidKeys = [], showId = null) => {
+  const scoped = scopeToShow(shows, showId)
+  const { total, unwatched } = poolCounts(scoped, watched)
   if (!total) return null
 
   let excluded
@@ -59,12 +82,15 @@ export const pickEpisode = (shows, watched, rand = Math.random, avoidKeys = []) 
   for (const key of avoidKeys) excluded.add(key)
 
   const candidates = []
-  for (const show of Object.values(shows)) {
+  for (const show of Object.values(scoped)) {
     const eps = likedEpisodes(show).filter((ep) => !excluded.has(episodeKey(show.id, ep)))
     if (eps.length) candidates.push({ show, eps })
   }
   if (!candidates.length) {
-    return avoidKeys.length ? pickEpisode(shows, watched, rand) : null
+    // Only the soft "just passed on this" exclusion can empty a pool that
+    // poolCounts said was non-empty; drop it and deal again rather than
+    // letting the button go dead. Stays scoped to the chosen show.
+    return avoidKeys.length ? pickEpisode(shows, watched, rand, [], showId) : null
   }
 
   const pickFrom = (list) => list[Math.min(list.length - 1, Math.floor(rand() * list.length))]

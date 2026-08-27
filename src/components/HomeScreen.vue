@@ -17,8 +17,25 @@ const drawing = ref(false)
 // actual no-repeat tracking is the watched ledger.
 const passedKeys = ref([])
 
-const counts = computed(() => poolCounts(store.shows, store.watched))
-const hasPool = computed(() => counts.value.total > 0)
+// null = deal from everything, the default. Not persisted: variety is the
+// point of the app, so a one-off "I want Seinfeld today" shouldn't quietly
+// become every day.
+const onlyShowId = ref(null)
+
+const allShows = computed(() =>
+  Object.values(store.shows || {})
+    .filter((show) => Object.keys(show.episodes || {}).length > 0)
+    .sort((a, b) => String(a.name).localeCompare(String(b.name))),
+)
+
+// The whole library, for "is there anything at all to draw".
+const libraryCounts = computed(() => poolCounts(store.shows, store.watched))
+// The pool actually being drawn from, which is what the caption should report.
+const counts = computed(() => poolCounts(store.shows, store.watched, onlyShowId.value))
+const hasPool = computed(() => libraryCounts.value.total > 0)
+const onlyShowName = computed(
+  () => allShows.value.find((show) => String(show.id) === String(onlyShowId.value))?.name || null,
+)
 
 const draw = async () => {
   if (drawing.value) return
@@ -28,7 +45,9 @@ const draw = async () => {
     passedKeys.value = [...passedKeys.value, ...(pick.value.keys || [pick.value.key])].slice(-15)
   }
   // A beat of suspense: the shuffle is instant, the anticipation shouldn't be.
-  const result = pickEpisode(store.shows, store.watched, Math.random, passedKeys.value)
+  const result = pickEpisode(
+    store.shows, store.watched, Math.random, passedKeys.value, onlyShowId.value,
+  )
   await new Promise((resolve) => setTimeout(resolve, 650))
   pick.value = result
   drawing.value = false
@@ -56,14 +75,37 @@ const epLabel = (h) =>
     <template v-if="!pick">
       <section v-if="hasPool" class="home__stage">
         <p class="home__count">
-          {{ counts.unwatched }} of {{ counts.total }} episodes left in the pool
+          {{ counts.unwatched }} of {{ counts.total }} episodes left
+          {{ onlyShowName ? `in ${onlyShowName}` : 'in the pool' }}
         </p>
-        <button class="home__draw" :class="{ 'home__draw--spin': drawing }" @click="draw">
+
+        <!-- Deliberately a plain select rather than a row of chips: the pool
+             can be a dozen shows, and a chip row would push the one big
+             button below the fold on a phone. -->
+        <label v-if="allShows.length > 1" class="home__scope">
+          <span class="home__scope-label">Draw from</span>
+          <select v-model="onlyShowId" class="home__scope-select">
+            <option :value="null">Any show</option>
+            <option v-for="show in allShows" :key="show.id" :value="String(show.id)">
+              {{ show.name }}
+            </option>
+          </select>
+        </label>
+        <button
+          class="home__draw"
+          :class="{ 'home__draw--spin': drawing }"
+          :disabled="counts.total === 0"
+          @click="draw"
+        >
           <span class="home__draw-emoji">{{ drawing ? '🎲' : '📺' }}</span>
           <span>{{ drawing ? 'Picking…' : 'What should I watch?' }}</span>
         </button>
-        <p v-if="counts.unwatched === 0" class="home__recycle">
-          You've watched the whole pool — the next draw starts a fresh lap.
+        <p v-if="counts.total === 0" class="home__recycle">
+          No episodes ticked in {{ onlyShowName }} yet — pick another show, or add some.
+        </p>
+        <p v-else-if="counts.unwatched === 0" class="home__recycle">
+          You've watched {{ onlyShowName ? `every ${onlyShowName} episode` : 'the whole pool' }} —
+          the next draw starts a fresh lap.
         </p>
       </section>
       <section v-else class="home__stage">
@@ -99,6 +141,36 @@ const epLabel = (h) =>
 </template>
 
 <style scoped>
+.home__scope {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  margin-top: -10px;
+}
+
+.home__scope-label {
+  font-size: 0.78rem;
+  opacity: 0.7;
+}
+
+.home__scope-select {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 6px 10px;
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  max-width: 60vw;
+}
+
+.home__draw:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .home {
   flex: 1;
   display: flex;

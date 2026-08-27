@@ -128,3 +128,79 @@ describe('pickEpisode', () => {
     expect(pickEpisode(shows, {}, () => 0.999999)).not.toBeNull()
   })
 })
+
+describe('drawing from a single show', () => {
+  // Requested via the bug button: "It would be nice if there was a way to draw
+  // randomly from within a certain subset so I could draw just from a single
+  // show."
+  const library = {
+    simpsons: {
+      id: 'simpsons',
+      name: 'The Simpsons',
+      episodes: {
+        a: { season: 4, episode: 12, name: 'Marge vs. the Monorail' },
+        b: { season: 5, episode: 2, name: 'Cape Feare' },
+      },
+    },
+    seinfeld: {
+      id: 'seinfeld',
+      name: 'Seinfeld',
+      episodes: {
+        c: { season: 4, episode: 11, name: 'The Contest' },
+        d: { season: 6, episode: 8, name: 'The Mom & Pop Store' },
+      },
+    },
+  }
+
+  it('counts only the chosen show', () => {
+    expect(poolCounts(library, {}).total).toBe(4)
+    expect(poolCounts(library, {}, 'seinfeld').total).toBe(2)
+  })
+
+  it('only ever deals from the chosen show', () => {
+    for (let i = 0; i < 20; i += 1) {
+      const pick = pickEpisode(library, {}, () => i / 20, [], 'seinfeld')
+      expect(pick.show.id).toBe('seinfeld')
+    }
+  })
+
+  it('still deals from everything when no show is chosen', () => {
+    const seen = new Set()
+    for (let i = 0; i < 20; i += 1) {
+      seen.add(pickEpisode(library, {}, () => i / 20).show.id)
+    }
+    expect(seen.size).toBe(2)
+  })
+
+  it('scopes the no-repeat exclusion to that show', () => {
+    // Seinfeld half-watched: the unwatched one is the only candidate, even
+    // though the wider library still has plenty unwatched.
+    const watched = { 'seinfeld|s4e11': Date.now() }
+    const pick = pickEpisode(library, watched, () => 0, [], 'seinfeld')
+    expect(pick.ep.name).toBe('The Mom & Pop Store')
+    expect(pick.recycled).toBe(false)
+  })
+
+  it('recycles within the show once that show is exhausted', () => {
+    // The rest of the library is untouched, so an unscoped draw would not
+    // recycle - this proves the lap is per-show, not global.
+    const watched = { 'seinfeld|s4e11': 1, 'seinfeld|s6e8': 2 }
+    const pick = pickEpisode(library, watched, () => 0, [], 'seinfeld')
+    expect(pick.show.id).toBe('seinfeld')
+    expect(pick.recycled).toBe(true)
+    expect(pickEpisode(library, watched, () => 0).recycled).toBe(false)
+  })
+
+  it('returns null for a show with nothing ticked', () => {
+    const withEmpty = { ...library, ghost: { id: 'ghost', name: 'Ghosts', episodes: {} } }
+    expect(pickEpisode(withEmpty, {}, () => 0, [], 'ghost')).toBeNull()
+  })
+
+  it('keeps the scope when it has to drop the just-passed exclusion', () => {
+    // Both Seinfeld episodes passed on: rather than going dead, it deals one
+    // of them again - and must not wander into The Simpsons to do it.
+    const passed = ['seinfeld|s4e11', 'seinfeld|s6e8']
+    const pick = pickEpisode(library, {}, () => 0, passed, 'seinfeld')
+    expect(pick.show.id).toBe('seinfeld')
+  })
+})
