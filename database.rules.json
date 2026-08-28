@@ -12,8 +12,14 @@
       ".read": false,
       ".write": false,
       "$reportId": {
-        ".write": "!data.exists()",
-        ".validate": "newData.hasChildren(['transcript'])"
+        // Create-only and open to the signed-out: the sign-in screen has to
+        // be able to report a sign-in failure. The caps below are therefore
+        // the whole defence - without them an unauthenticated stranger can
+        // store arbitrarily large payloads here. Fleet standard, see
+        // thunder/cinemaroll. `transcript` is user-typed (5k is generous);
+        // `state` is App.vue's bugSnapshot, a few hundred bytes in practice.
+        ".write": "!data.exists() && newData.exists()",
+        ".validate": "newData.hasChildren(['transcript', 'createdAt']) && newData.child('transcript').isString() && newData.child('transcript').val().length > 0 && newData.child('transcript').val().length <= 5000 && (!newData.hasChild('state') || (newData.child('state').isString() && newData.child('state').val().length <= 10000))"
       }
     }
   }
