@@ -188,7 +188,12 @@ const epLabel = (h) =>
   align-items: center;
   gap: 16px;
   text-align: center;
-  padding-top: 8dvh;
+  /* Breathing room under the topbar, not a chasm. This was a flat 8dvh,
+     which reads fine on a laptop and is 65px of nothing on a phone — on top
+     of .home's own 18px, it pushed the episode count and the show picker
+     most of an inch down the screen (Matt, 2026-08-28). Capped so a tall
+     desktop window doesn't reintroduce the same gap. */
+  padding-top: clamp(4px, 2dvh, 20px);
 }
 
 .home__count {
