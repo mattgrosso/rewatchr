@@ -8,6 +8,7 @@ import {
   getAuth,
   GoogleAuthProvider,
   onAuthStateChanged,
+  signInAnonymously,
   signInWithPopup,
   signOut,
 } from 'firebase/auth'
@@ -25,8 +26,14 @@ const app = initializeApp(CONFIG)
 const auth = getAuth(app)
 const db = getDatabase(app)
 
+// An anonymous session is NOT a Rewatchr user - it exists only so a
+// signed-out bug report can carry an auth token (see lib/bugreport.js and
+// database.rules.json). Without this filter, filing a bug from the splash
+// would sail past the sign-in screen into an empty signed-in-looking app.
 const toUser = (raw) =>
-  raw ? { uid: raw.uid, email: raw.email, name: raw.displayName, photo: raw.photoURL } : null
+  raw && !raw.isAnonymous
+    ? { uid: raw.uid, email: raw.email, name: raw.displayName, photo: raw.photoURL }
+    : null
 
 export const watchAuth = (onUser) => {
   onAuthStateChanged(auth, (raw) => onUser(toUser(raw)))
@@ -45,3 +52,15 @@ export const fetchUserData = async (uid) => {
 }
 
 export const writeUserData = (uid, data) => set(ref(db, `users/${uid}`), data)
+
+/**
+ * A fresh ID token for the bug-report POST - the current user's if someone
+ * is signed in, an anonymous session's otherwise. Anonymous auth was enabled
+ * on this project 2026-08-29 precisely so the bug inbox could require
+ * `auth != null` (Firebase's scanner emailed daily about the authless
+ * create) without losing reports from the sign-in screen.
+ */
+export const bugReportToken = async () => {
+  const user = auth.currentUser ?? (await signInAnonymously(auth)).user
+  return user.getIdToken()
+}

@@ -6,6 +6,8 @@
 // to its own `bugReports` node (write-only under database.rules.json). Triage
 // with `yarn fetch-bug-reports`.
 
+import { bugReportToken } from './firebase.js'
+
 const ENDPOINT = 'https://rewatchr-85473-default-rtdb.firebaseio.com/bugReports.json'
 
 const STASH_KEY = 'rewatchr.pendingBugReports'
@@ -29,7 +31,10 @@ const writeStash = (reports) => {
 }
 
 const post = async (report) => {
-  const response = await fetch(ENDPOINT, {
+  // The rules require auth != null; the token is the signed-in user's, or a
+  // silent anonymous session's for reports filed from the splash.
+  const token = await bugReportToken()
+  const response = await fetch(`${ENDPOINT}?auth=${encodeURIComponent(token)}`, {
     method: 'POST',
     body: JSON.stringify({ ...report, createdAt: { '.sv': 'timestamp' } }),
   })

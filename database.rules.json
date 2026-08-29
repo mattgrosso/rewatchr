@@ -12,13 +12,14 @@
       ".read": false,
       ".write": false,
       "$reportId": {
-        // Create-only and open to the signed-out: the sign-in screen has to
-        // be able to report a sign-in failure. The caps below are therefore
-        // the whole defence - without them an unauthenticated stranger can
-        // store arbitrarily large payloads here. Fleet standard, see
-        // thunder/cinemaroll. `transcript` is user-typed (5k is generous);
-        // `state` is App.vue's bugSnapshot, a few hundred bytes in practice.
-        ".write": "!data.exists() && newData.exists()",
+        // Create-only. `auth != null` is satisfied by a SILENT anonymous
+        // session for reports filed from the sign-in screen (lib/firebase's
+        // bugReportToken; anonymous auth enabled 2026-08-29, which is what
+        // finally quiets Firebase's daily insecure-rules email). The caps
+        // below stay - an anonymous session is free to mint, so size is
+        // still the real defence. `transcript` is user-typed (5k is
+        // generous); `state` is App.vue's bugSnapshot, a few hundred bytes.
+        ".write": "auth != null && !data.exists() && newData.exists()",
         ".validate": "newData.hasChildren(['transcript', 'createdAt']) && newData.child('transcript').isString() && newData.child('transcript').val().length > 0 && newData.child('transcript').val().length <= 5000 && (!newData.hasChild('state') || (newData.child('state').isString() && newData.child('state').val().length <= 10000))"
       }
     }
