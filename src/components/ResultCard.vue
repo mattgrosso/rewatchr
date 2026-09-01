@@ -9,7 +9,7 @@ const props = defineProps({
   providers: { type: Object, default: null }, // null = still loading
 })
 
-const emit = defineEmits(['again', 'watched', 'close'])
+const emit = defineEmits(['again', 'watched', 'drop', 'close'])
 
 const art = computed(
   () => img(props.pick.ep.still, 'w780') || img(props.pick.show.poster, 'w500'),
@@ -86,6 +86,14 @@ const code = (ep) => `S${ep.season} · E${ep.episode}`
       <button class="btn btn--ghost" @click="emit('again')">🔁 Deal again</button>
       <button class="btn btn--primary" @click="emit('watched')">✓ I'm watching it</button>
     </div>
+    <!-- Deliberately quiet, and deliberately below the two real choices: this
+         is the rare "actually, I don't want this one at all" (bug report,
+         2026-09-01, asking for "not a prominent button, but just an option
+         that's there"). It unticks the episode and deals another, and the
+         next card offers an undo. -->
+    <button class="result__drop" @click="emit('drop')">
+      Not this one — take {{ parts.length > 1 ? 'them' : 'it' }} out of the pool
+    </button>
     <button class="result__back" @click="emit('close')">Back</button>
   </section>
 </template>
@@ -229,6 +237,17 @@ const code = (ep) => `S${ep.season} · E${ep.episode}`
 .result__actions {
   display: flex;
   gap: 10px;
+}
+
+/* Quieter than the two buttons above it, louder than "Back" — it is a real
+   action with a real consequence, just not one of the two usual answers. */
+.result__drop {
+  color: var(--ink-soft);
+  font-size: 13px;
+  padding: 4px 6px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  margin-top: -6px;
 }
 
 .result__back {

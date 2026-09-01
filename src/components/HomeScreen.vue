@@ -1,7 +1,7 @@
 <script setup>
 // The lunchtime screen: one big button, and the result it deals.
 import { computed, ref } from 'vue'
-import { store, markWatched } from '../lib/store.js'
+import { store, markWatched, setEpisodesLiked } from '../lib/store.js'
 import { pickEpisode, poolCounts } from '../lib/picker.js'
 import { watchProviders, img } from '../lib/tmdb.js'
 import ResultCard from './ResultCard.vue'
@@ -37,9 +37,14 @@ const onlyShowName = computed(
   () => allShows.value.find((show) => String(show.id) === String(onlyShowId.value))?.name || null,
 )
 
+// The episode most recently taken out of the pool, so the next card can offer
+// an undo. Cleared by any ordinary draw — the offer belongs to the moment.
+const dropped = ref(null)
+
 const draw = async () => {
   if (drawing.value) return
   drawing.value = true
+  dropped.value = null
   providers.value = null
   if (pick.value) {
     passedKeys.value = [...passedKeys.value, ...(pick.value.keys || [pick.value.key])].slice(-15)
@@ -63,6 +68,38 @@ const draw = async () => {
 const watchedIt = () => {
   if (pick.value) markWatched(pick.value)
   pick.value = null
+}
+
+// "Not this one" — untick the episode so it never comes back, then deal
+// another. A two-parter goes as a unit, the same way it was dealt and the same
+// way it gets marked watched; unticking half of one would leave an orphan that
+// can never be drawn (multipart deals always start at part one).
+//
+// The unticking happens BEFORE the redraw, so the episode being dropped can't
+// be the one that comes back. Undo is offered rather than a confirm: this is
+// meant to be a light, one-tap thing, and re-ticking is exact.
+const dropIt = async () => {
+  const current = pick.value
+  if (!current || drawing.value) return
+  const eps = current.parts?.length ? current.parts : [current.ep]
+  setEpisodesLiked(current.show.id, eps, false)
+  await draw()
+  dropped.value = {
+    showId: current.show.id,
+    showName: current.show.name,
+    eps,
+    // Same shorthand the history list uses for a multi-part sitting.
+    label:
+      eps.length > 1
+        ? `S${eps[0].season}E${eps[0].episode} +${eps.length - 1}`
+        : `S${eps[0].season}E${eps[0].episode}`,
+  }
+}
+
+const undoDrop = () => {
+  if (!dropped.value) return
+  setEpisodesLiked(dropped.value.showId, dropped.value.eps, true)
+  dropped.value = null
 }
 
 const recent = computed(() => store.history.slice(0, 8))
@@ -135,8 +172,17 @@ const epLabel = (h) =>
       :providers="providers"
       @again="draw"
       @watched="watchedIt"
+      @drop="dropIt"
       @close="pick = null"
     />
+
+    <!-- Outside the pick branch on purpose: dropping the last episode in the
+         pool leaves no card to hang the undo on, and that is exactly the
+         moment someone wants it back. -->
+    <p v-if="dropped" class="home__dropped">
+      Took {{ dropped.showName }} {{ dropped.label }} out of the pool.
+      <button class="home__undo" @click="undoDrop">Undo</button>
+    </p>
   </main>
 </template>
 
@@ -169,6 +215,22 @@ const epLabel = (h) =>
 .home__draw:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.home__dropped {
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 13px;
+  margin-top: -12px;
+}
+
+.home__undo {
+  color: var(--amber);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 4px;
 }
 
 .home {
