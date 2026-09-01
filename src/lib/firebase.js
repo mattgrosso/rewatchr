@@ -54,13 +54,17 @@ export const fetchUserData = async (uid) => {
 export const writeUserData = (uid, data) => set(ref(db, `users/${uid}`), data)
 
 /**
- * A fresh ID token for the bug-report POST - the current user's if someone
- * is signed in, an anonymous session's otherwise. Anonymous auth was enabled
+ * An ID token for the bug-report POST - the current user's if someone is
+ * signed in, an anonymous session's otherwise. Anonymous auth was enabled
  * on this project 2026-08-29 precisely so the bug inbox could require
  * `auth != null` (Firebase's scanner emailed daily about the authless
  * create) without losing reports from the sign-in screen.
+ *
+ * `fresh` forces a refresh instead of taking the SDK's cached token. The
+ * caller spends it only after a 401, because the database refuses a stale
+ * token and a rejected write with the identical error.
  */
-export const bugReportToken = async () => {
+export const bugReportToken = async ({ fresh = false } = {}) => {
   const user = auth.currentUser ?? (await signInAnonymously(auth)).user
-  return user.getIdToken()
+  return user.getIdToken(fresh)
 }

@@ -37,8 +37,10 @@ const send = async () => {
       open.value = false
     }, 2200)
   } catch (err) {
-    // Keep the text; they just typed it and it exists nowhere else.
-    error.value = err.message || 'Could not send that report.'
+    // Keep the text on screen, and say plainly that it is also saved — the
+    // report is in the stash by now, so a failure here is a delay, not a loss.
+    const what = err.message || 'Could not send that report.'
+    error.value = err.stashed ? `${what}. Saved — it’ll retry next time you open the app.` : what
   } finally {
     sending.value = false
   }

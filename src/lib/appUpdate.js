@@ -82,17 +82,24 @@ export const setupAutoUpdate = () => {
   let pollTimer = null
   let checking = false
 
-  const reloadForUpdate = async () => {
+  // The one-attempt guard is spent HERE, at the moment of reloading, not when
+  // arming. Burning it while arming was a trap: a screen that is never a safe
+  // moment - and a dealt episode sits on screen for as long as the episode
+  // runs - marked the bundle attempted on the first check and then bailed out
+  // of every check after it, so the app could hold an old build indefinitely.
+  // Cinema Roll survives the early burn because it still shows a Refresh
+  // banner; this app dropped the banner and kept the guard, and a build that
+  // never updates is how a client ends up talking to rules it doesn't know.
+  const reloadForUpdate = async (targetBundle) => {
+    if (!shouldAutoAttempt(targetBundle)) return
     await waitForNewWorker()
     window.location.reload()
   }
 
   const armAutoUpdate = (targetBundle) => {
-    if (!shouldAutoAttempt(targetBundle)) return
-
     const fresh = Date.now() - lastBecameVisibleAt < FRESH_MS
     if (fresh && isSafeMomentForReload()) {
-      void reloadForUpdate()
+      void reloadForUpdate(targetBundle)
       return
     }
 
@@ -102,7 +109,7 @@ export const setupAutoUpdate = () => {
       if (quiet && isSafeMomentForReload()) {
         clearInterval(pollTimer)
         pollTimer = null
-        void reloadForUpdate()
+        void reloadForUpdate(targetBundle)
       }
     }, POLL_MS)
   }

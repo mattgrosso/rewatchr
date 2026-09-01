@@ -30,15 +30,46 @@ const writeStash = (reports) => {
   }
 }
 
-const post = async (report) => {
+// The Realtime Database answers EVERY refused write with the same opaque
+// `401 {"error":"Permission denied"}` — no token, an expired token, and a
+// `.validate` rejection are indistinguishable from out here. That ambiguity
+// is what made the 401 of 2026-09-01 so slow to pin down, so this module now
+// removes the causes it can and names the ones it can't.
+const describeFailure = (status, body) => {
+  let detail = body?.trim() ?? ''
+  try {
+    detail = JSON.parse(detail)?.error ?? detail
+  } catch {
+    // Not JSON — the raw body is still better than nothing.
+  }
+  return `Bug report failed: ${status}${detail ? ` — ${detail}` : ''}`
+}
+
+const attempt = async (report, { freshToken }) => {
   // The rules require auth != null; the token is the signed-in user's, or a
   // silent anonymous session's for reports filed from the splash.
-  const token = await bugReportToken()
+  const token = await bugReportToken({ fresh: freshToken })
   const response = await fetch(`${ENDPOINT}?auth=${encodeURIComponent(token)}`, {
     method: 'POST',
     body: JSON.stringify({ ...report, createdAt: { '.sv': 'timestamp' } }),
   })
-  if (!response.ok) throw new Error(`Bug report failed: ${response.status}`)
+  if (response.ok) return
+  const error = new Error(describeFailure(response.status, await response.text().catch(() => '')))
+  error.status = response.status
+  throw error
+}
+
+const post = async (report) => {
+  try {
+    await attempt(report, { freshToken: false })
+  } catch (error) {
+    // A stale token is the one half of that 401 we can do something about:
+    // `getIdToken()` hands back a cached token until it is nearly expired, and
+    // a PWA resumed after hours in the background is exactly where that goes
+    // wrong. Spend one forced refresh before believing the refusal.
+    if (error.status !== 401) throw error
+    await attempt(report, { freshToken: true })
+  }
 }
 
 export const flushStash = async () => {
@@ -56,29 +87,51 @@ export const flushStash = async () => {
   if (sent) writeStash(stash.slice(sent))
 }
 
-export const buildReport = (transcript, state) => ({
-  transcript,
-  clientCreatedAt: Date.now(),
-  url: window.location.href,
-  userAgent: navigator.userAgent,
-  viewport: `${window.innerWidth}x${window.innerHeight}`,
-  online: navigator.onLine,
-  state: JSON.stringify(state),
-})
+// Mirrors the caps in database.rules.json. They necessarily live in two
+// places, so clamp here rather than hand the rules something they will refuse:
+// an oversize field comes back as the same unattributable 401 as a missing
+// token, and a truncated report still says what happened.
+const MAX_TRANSCRIPT = 5000
+const MAX_STATE = 10000
 
-// Send, with the offline-stash fallback. Resolves to 'sent' | 'stashed';
-// rejects when online but the write failed (caller keeps the text visible).
+const clamp = (value, limit) => (value.length <= limit ? value : `${value.slice(0, limit - 1)}…`)
+
+export const buildReport = (transcript, state) => {
+  const serialized = JSON.stringify(state)
+  return {
+    transcript: clamp(transcript, MAX_TRANSCRIPT),
+    clientCreatedAt: Date.now(),
+    url: window.location.href,
+    userAgent: navigator.userAgent,
+    viewport: `${window.innerWidth}x${window.innerHeight}`,
+    online: navigator.onLine,
+    state: typeof serialized === 'string' ? clamp(serialized, MAX_STATE) : undefined,
+  }
+}
+
+// Send, stashing whatever doesn't land. Resolves to 'sent' | 'stashed';
+// rejects when online but the write failed — and even then the report is in
+// the stash, so the caller reports the error rather than the loss.
 export const sendReport = async (transcript, state) => {
   const report = buildReport(transcript, state)
   try {
     await post(report)
+    // Drop any earlier stashed copy of the same text: a retry after a visible
+    // failure would otherwise file it twice.
+    const others = readStash().filter((stashed) => stashed.transcript !== report.transcript)
+    if (others.length !== readStash().length) writeStash(others)
     void flushStash()
     return 'sent'
   } catch (error) {
-    if (!navigator.onLine) {
-      writeStash([...readStash(), report])
-      return 'stashed'
+    // The typed text exists nowhere else, so it gets stashed whatever went
+    // wrong — offline was only ever the obvious case, and a permissions 401
+    // used to drop the report on the floor.
+    const stash = readStash()
+    if (!stash.some((stashed) => stashed.transcript === report.transcript)) {
+      writeStash([...stash, report])
     }
+    if (!navigator.onLine) return 'stashed'
+    error.stashed = true
     throw error
   }
 }
