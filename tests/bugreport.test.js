@@ -2,11 +2,16 @@ import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 
 // The token helper is the one piece of Firebase this module touches.
 const getToken = vi.fn()
+const getReporter = vi.fn()
 vi.mock('../src/lib/firebase.js', () => ({
   bugReportToken: (options) => getToken(options),
+  bugReporter: () => getReporter(),
 }))
 
 const { buildReport, sendReport, flushStash } = await import('../src/lib/bugreport.js')
+
+const MATT = { uid: 'uid-matt', displayName: 'Matt', email: 'matt@example.com' }
+const postedBody = (call = 0) => JSON.parse(fetch.mock.calls[call][1].body)
 
 const STASH_KEY = 'rewatchr.pendingBugReports'
 const stashed = () => JSON.parse(localStorage.getItem(STASH_KEY) ?? '[]')
@@ -22,6 +27,8 @@ beforeEach(() => {
   localStorage.clear()
   getToken.mockReset()
   getToken.mockResolvedValue('token-abc')
+  getReporter.mockReset()
+  getReporter.mockResolvedValue(MATT)
   vi.stubGlobal('fetch', vi.fn())
   vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true)
 })
@@ -46,9 +53,48 @@ describe('buildReport', () => {
     expect(report.transcript).toBe('the button did nothing')
     expect(report.state).toBe('{"screen":"home"}')
   })
+
+  // Who filed it (2026-09-14). Until then every report arrived with no
+  // reporter at all, and the morning sweep printed "unknown" for each one.
+  it('names the reporter and the device', () => {
+    vi.stubGlobal('devicePixelRatio', 3)
+    const report = buildReport('it broke', { screen: 'home' }, MATT)
+    expect(report).toMatchObject({
+      reporterUid: 'uid-matt',
+      reporterDisplayName: 'Matt',
+      reporterEmail: 'matt@example.com',
+      url: window.location.href,
+      screenSize: `${window.screen.width}x${window.screen.height}`,
+      devicePixelRatio: 3,
+    })
+  })
+
+  it('writes nulls, not nothing, when nobody could be named', () => {
+    const report = buildReport('it broke', {}, null)
+    expect(report).toMatchObject({ reporterUid: null, reporterDisplayName: null, reporterEmail: null })
+  })
 })
 
 describe('sendReport', () => {
+  it('posts the reporter with the report', async () => {
+    fetch.mockResolvedValue(ok())
+    await expect(sendReport('it broke', {})).resolves.toBe('sent')
+    expect(postedBody()).toMatchObject({
+      reporterUid: 'uid-matt',
+      reporterDisplayName: 'Matt',
+      reporterEmail: 'matt@example.com',
+      screenSize: expect.stringMatching(/^\d+x\d+$/),
+      devicePixelRatio: expect.any(Number),
+    })
+  })
+
+  it('still sends when the reporter cannot be looked up', async () => {
+    getReporter.mockRejectedValue(new Error('offline, no session'))
+    fetch.mockResolvedValue(ok())
+    await expect(sendReport('it broke', {})).resolves.toBe('sent')
+    expect(postedBody()).toMatchObject({ reporterUid: null, transcript: 'it broke' })
+  })
+
   it('sends with a cached token and reports success', async () => {
     fetch.mockResolvedValue(ok())
     await expect(sendReport('it broke', {})).resolves.toBe('sent')

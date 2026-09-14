@@ -57,8 +57,16 @@ for (const [id, report] of entries) {
   console.log(`── ${id}`)
   console.log(`   ${when}`)
   console.log(`   ${report.transcript}`)
+  // Reporter fields are written since 2026-09-14 (the hub games' 2026-09-11
+  // shape); older reports print "unknown" rather than nothing at all.
+  const who = report.reporterDisplayName || report.reporterEmail
+    ? `${report.reporterDisplayName || ''}${report.reporterEmail ? ` <${report.reporterEmail}>` : ''}`.trim()
+    : report.reporterUid ? `uid ${report.reporterUid} (no name — anonymous session?)` : 'unknown'
+  console.log(`   reporter: ${who}`)
+  console.log(`   url: ${report.url || 'unknown'}`)
+  console.log(`   userAgent: ${report.userAgent || 'unknown'}`)
+  console.log(`   screenSize: ${report.screenSize || 'unknown'}${report.devicePixelRatio ? ` @${report.devicePixelRatio}x` : ''} viewport: ${report.viewport || 'unknown'}`)
   if (report.state) console.log(`   state: ${report.state}`)
-  console.log(`   ${report.userAgent || ''} ${report.viewport || ''}`)
   console.log('')
 }
 

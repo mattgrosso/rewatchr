@@ -68,3 +68,15 @@ export const bugReportToken = async ({ fresh = false } = {}) => {
   const user = auth.currentUser ?? (await signInAnonymously(auth)).user
   return user.getIdToken(fresh)
 }
+
+/**
+ * Who is filing a bug report (lib/bugreport.js): the signed-in user, or the
+ * silent anonymous session — its uid still ties a run of reports to one
+ * browser, which is why toUser's isAnonymous filter is NOT applied here.
+ * Mints the anonymous session if there is none yet, exactly as
+ * bugReportToken would a moment later, so the two describe the same user.
+ */
+export const bugReporter = async () => {
+  const user = auth.currentUser ?? (await signInAnonymously(auth)).user
+  return { uid: user.uid, displayName: user.displayName || null, email: user.email || null }
+}

@@ -6,7 +6,7 @@
 // to its own `bugReports` node (write-only under database.rules.json). Triage
 // with `yarn fetch-bug-reports`.
 
-import { bugReportToken } from './firebase.js'
+import { bugReportToken, bugReporter } from './firebase.js'
 
 const ENDPOINT = 'https://rewatchr-85473-default-rtdb.firebaseio.com/bugReports.json'
 
@@ -96,14 +96,24 @@ const MAX_STATE = 10000
 
 const clamp = (value, limit) => (value.length <= limit ? value : `${value.slice(0, limit - 1)}…`)
 
-export const buildReport = (transcript, state) => {
+// `reporter` is captured at build time, not send time: a stashed report goes
+// out on a later launch, and by then whoever filed it may have signed out or
+// in. reporterUid / reporterDisplayName / reporterEmail / screenSize /
+// devicePixelRatio are what fetch-bug-reports prints (the shape the hub
+// games adopted 2026-09-11); until 2026-09-14 none of them were written here.
+export const buildReport = (transcript, state, reporter = null) => {
   const serialized = JSON.stringify(state)
   return {
     transcript: clamp(transcript, MAX_TRANSCRIPT),
     clientCreatedAt: Date.now(),
+    reporterUid: reporter?.uid || null,
+    reporterDisplayName: reporter?.displayName || null,
+    reporterEmail: reporter?.email || null,
     url: window.location.href,
     userAgent: navigator.userAgent,
     viewport: `${window.innerWidth}x${window.innerHeight}`,
+    screenSize: `${window.screen?.width || 0}x${window.screen?.height || 0}`,
+    devicePixelRatio: window.devicePixelRatio || 1,
     online: navigator.onLine,
     state: typeof serialized === 'string' ? clamp(serialized, MAX_STATE) : undefined,
   }
@@ -113,7 +123,10 @@ export const buildReport = (transcript, state) => {
 // rejects when online but the write failed — and even then the report is in
 // the stash, so the caller reports the error rather than the loss.
 export const sendReport = async (transcript, state) => {
-  const report = buildReport(transcript, state)
+  // Identity is best-effort: offline with no session yet, there is nobody to
+  // name, and the report must still be built so it can be stashed.
+  const reporter = await bugReporter().catch(() => null)
+  const report = buildReport(transcript, state, reporter)
   try {
     await post(report)
     // Drop any earlier stashed copy of the same text: a retry after a visible
