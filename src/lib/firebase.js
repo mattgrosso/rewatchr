@@ -12,7 +12,7 @@ import {
   signInWithPopup,
   signOut,
 } from 'firebase/auth'
-import { getDatabase, get, ref, set } from 'firebase/database'
+import { get, getDatabase, ref, set, update } from 'firebase/database'
 
 const CONFIG = {
   apiKey: 'AIzaSyBOoP2gxy-NVGWjBsA-_66iNFnyOGn4JNw',
@@ -67,6 +67,17 @@ export const writeUserData = (uid, data) => set(ref(db, `users/${uid}`), data)
 export const bugReportToken = async ({ fresh = false } = {}) => {
   const user = auth.currentUser ?? (await signInAnonymously(auth)).user
   return user.getIdToken(fresh)
+}
+
+// The reply half of the bug button (lib/bugResolutions.js): whoever this
+// browser is to Firebase right now - the signed-in user, or the silent
+// anonymous session a report was filed under - and their notices.
+export const currentUid = () => auth.currentUser?.uid || null
+export const readResolutions = async (uid) => (await get(ref(db, `bugReportResolutions/${uid}`))).val()
+export const markResolutionsSeen = (uid, ids) => {
+  const updates = {}
+  ids.forEach((id) => { updates[`bugReportResolutions/${uid}/${id}/seen`] = true })
+  return update(ref(db), updates)
 }
 
 /**

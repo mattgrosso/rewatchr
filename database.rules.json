@@ -22,6 +22,22 @@
         ".write": "auth != null && !data.exists() && newData.exists()",
         ".validate": "newData.hasChildren(['transcript', 'createdAt']) && newData.child('transcript').isString() && newData.child('transcript').val().length > 0 && newData.child('transcript').val().length <= 5000 && (!newData.hasChild('state') || (newData.child('state').isString() && newData.child('state').val().length <= 10000))"
       }
+    },
+
+    // The reply to a bug report (2026-09-21, ported from Cinema Roll):
+    // `yarn resolve-bug-report` writes a plain-language notice here under the
+    // reporter's uid, and BugResolutionNotice shows it on their next launch.
+    // Only the reporter can read their own; the only client write is
+    // flipping `seen`. The text is written by the CLI, never by a client.
+    "bugReportResolutions": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$reportId": {
+          "seen": {
+            ".write": "auth != null && auth.uid === $uid && newData.isBoolean()"
+          }
+        }
+      }
     }
   }
 }

@@ -6,6 +6,7 @@ import { store, loadForUser, clearUser } from './lib/store.js'
 import HomeScreen from './components/HomeScreen.vue'
 import ShowsScreen from './components/ShowsScreen.vue'
 import BugButton from './components/BugButton.vue'
+import BugResolutionNotice from './components/BugResolutionNotice.vue'
 import InstallButton from './components/InstallButton.vue'
 import { buildStamp } from './lib/buildStamp.js'
 
@@ -105,6 +106,7 @@ const bugSnapshot = () => ({
     <InstallButton />
   </template>
   <BugButton :snapshot="bugSnapshot" />
+  <BugResolutionNotice />
 </template>
 
 <style scoped>
