@@ -1,6 +1,7 @@
 <script setup>
 // The lunchtime screen: one big button, and the result it deals.
 import { computed, ref } from 'vue'
+import { trackEvent } from '../utils/usage.js'
 import { store, markWatched, setEpisodesLiked } from '../lib/store.js'
 import { pickEpisode, poolCounts } from '../lib/picker.js'
 import { watchProviders, img } from '../lib/tmdb.js'
@@ -42,6 +43,7 @@ const onlyShowName = computed(
 const dropped = ref(null)
 
 const draw = async () => {
+  trackEvent('pick-drawn')
   if (drawing.value) return
   drawing.value = true
   dropped.value = null
