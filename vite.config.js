@@ -37,6 +37,10 @@ export default defineConfig({
         // App shell precached; TMDB data and images go over the network with
         // a small cache so posters you've already seen render offline.
         globPatterns: ['**/*.{js,css,html,png,ico,webmanifest}'],
+        // launch/ holds the iOS launch images (~0.7MB): iOS fetches them
+        // itself when the app is added to the Home Screen, so precaching
+        // them on every phone would buy nothing. splash-icon.png IS precached.
+        globIgnores: ['launch/**'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/image\.tmdb\.org\//,

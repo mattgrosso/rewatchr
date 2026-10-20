@@ -26,6 +26,11 @@ Live at **https://rewatchr-85473.web.app** (Firebase Hosting).
 - **🐛 bug button** on every screen, hub-standard: write-only `bugReports`
   node, offline stash, triaged with `yarn fetch-bug-reports` /
   `yarn resolve-bug-report <id>`.
+- **Launch splash** (2026-10-20): `index.html` paints `#181210` inline and
+  shows the icon and name inside `#app` until Vue mounts; iOS gets launch
+  images from `public/launch/` (kept out of the service worker precache),
+  drawn by `scripts/generate-launch-images.mjs`, which prints the `<link>`
+  tags. Re-run it if the icon, name or background changes.
 
 ## Running it signed in (dev)
 
