@@ -54,6 +54,14 @@ export const seasonEpisodes = async (id, seasonNumber) => {
   }))
 }
 
+// Paid add-ons resold through another store ("HBO Max Amazon Channel",
+// "Britbox Apple TV channel", "AMC+ Roku Premium Channel"). They're an extra
+// subscription, not somewhere you can already watch, and the real service
+// shows up on its own anyway. TMDB's casing and spacing wander, and one is
+// spelled "Amzon".
+const ADD_ON_CHANNEL = /\b(amazon|amzon|apple tv|roku premium)\s+channel\s*$/i
+export const isAddOnChannel = (name) => ADD_ON_CHANNEL.test(name || '')
+
 // Where to stream, US. `link` is TMDB's per-show watch page (their JustWatch
 // attribution requirement is satisfied by linking there rather than deep
 // into each service).
@@ -63,6 +71,8 @@ export const watchProviders = async (id) => {
   if (!us) return { link: null, flatrate: [] }
   return {
     link: us.link || null,
-    flatrate: (us.flatrate || []).map((p) => ({ name: p.provider_name, logo: p.logo_path })),
+    flatrate: (us.flatrate || [])
+      .filter((p) => !isAddOnChannel(p.provider_name))
+      .map((p) => ({ name: p.provider_name, logo: p.logo_path })),
   }
 }
