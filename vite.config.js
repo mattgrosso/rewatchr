@@ -57,5 +57,7 @@ export default defineConfig({
   ],
   test: {
     environment: 'jsdom',
+    // Node 22's own (empty) localStorage global shadows jsdom's — see tests/setup.js.
+    setupFiles: ['tests/setup.js'],
   },
 })
