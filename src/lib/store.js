@@ -9,12 +9,22 @@ import { mergeData, normalizeData, HISTORY_CAP } from './merge.js'
 import { episodeKey } from './picker.js'
 
 const cacheKey = (uid) => `rewatchr.data.${uid}`
+// Who was signed in last time on this browser (2026-11-05). Opening the app
+// used to sit on "Warming up…" until Firebase Auth answered, even though the
+// shows were already in the cache above. Now the app opens straight onto
+// that person's cached shows and Auth confirms in the background — see
+// startFromCache / loadForUser / clearUser.
+const LAST_USER_KEY = 'rewatchr.lastUser'
 const PUSH_DELAY = 1500
 
 export const store = reactive({
   user: null,
   authReady: false,
   loaded: false,
+  // False while the app is showing a remembered user that Firebase Auth
+  // hasn't vouched for yet. Nothing is pushed to the database until it is
+  // true: the rules would refuse a write without a live token anyway.
+  confirmed: false,
   // Set only by the dev sign-in bypass (lib/devAuth.js): keeps everything in
   // localStorage so a dev session can never read or write the real database.
   // A plain boolean rather than a check against the dev user, so nothing
@@ -49,10 +59,36 @@ const writeCache = () => {
   }
 }
 
+const rememberUser = (user) => {
+  try {
+    const { uid, email, name, photo } = user
+    localStorage.setItem(LAST_USER_KEY, JSON.stringify({ uid, email, name, photo }))
+  } catch {
+    // Best effort; without it the next launch just waits for Auth.
+  }
+}
+
+const forgetUser = () => {
+  try {
+    localStorage.removeItem(LAST_USER_KEY)
+  } catch {
+    // Nothing to do.
+  }
+}
+
+const readLastUser = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem(LAST_USER_KEY) ?? 'null')
+    return user && typeof user.uid === 'string' ? user : null
+  } catch {
+    return null
+  }
+}
+
 let pushTimer = null
 const schedulePush = () => {
   writeCache()
-  if (!store.user || store.localOnly) return
+  if (!store.user || store.localOnly || !store.confirmed) return
   clearTimeout(pushTimer)
   pushTimer = setTimeout(async () => {
     try {
@@ -70,20 +106,46 @@ const apply = (data) => {
   store.history = data.history
 }
 
-export const loadForUser = async (user) => {
+// Launch, before Firebase Auth has said anything: if someone was signed in
+// here last time, show their cached shows now. Edits made before Auth
+// confirms land in the cache only; loadForUser pushes them once it does.
+export const startFromCache = () => {
+  if (store.user) return false
+  const user = readLastUser()
+  if (!user) return false
   store.user = user
-  store.loaded = false
-  const local = normalizeData(readCache(user.uid))
-  apply(local)
+  store.confirmed = false
+  apply(normalizeData(readCache(user.uid)))
+  store.loaded = true
+  return true
+}
+
+// Firebase Auth's answer. The same person startFromCache guessed: keep what's
+// on screen (including any edits since launch) and merge the cloud copy in.
+// Anyone else: start over from their own cache.
+export const loadForUser = async (user) => {
+  const sameAsShown = store.user?.uid === user.uid
+  store.user = user
+  store.confirmed = true
+  if (!store.localOnly) rememberUser(user)
+  if (!sameAsShown) {
+    store.loaded = false
+    apply(normalizeData(readCache(user.uid)))
+  }
   if (store.localOnly) {
     store.loaded = true
     return
   }
   try {
     const remote = await fetchUserData(user.uid)
-    apply(mergeData(local, remote))
+    // Signed out or switched while the fetch was out: this answer is stale.
+    if (store.user?.uid !== user.uid) return
+    // Merge with what's on screen now, so an edit made during the fetch
+    // isn't overwritten by the copy read before it.
+    apply(mergeData(snapshot(), remote))
     store.syncError = ''
   } catch (error) {
+    if (store.user?.uid !== user.uid) return
     // Offline or the database is unreachable — the local cache carries it.
     store.syncError = error.message || 'Could not reach the cloud copy'
   }
@@ -91,8 +153,13 @@ export const loadForUser = async (user) => {
   schedulePush()
 }
 
+// Signed out (here, on another device, or the sign-in expired): back to the
+// sign-in screen, and stop opening straight into this person's shows.
 export const clearUser = () => {
+  clearTimeout(pushTimer)
+  forgetUser()
   store.user = null
+  store.confirmed = false
   apply({ shows: {}, watched: {}, history: [] })
 }
 

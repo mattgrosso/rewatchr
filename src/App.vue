@@ -2,7 +2,7 @@
 // Shell: sign-in gate, then Home (the button) / Shows (the library).
 import { onMounted, ref } from 'vue'
 import { watchAuth, signInWithGoogle, signOutUser } from './lib/firebase.js'
-import { store, loadForUser, clearUser } from './lib/store.js'
+import { store, loadForUser, clearUser, startFromCache } from './lib/store.js'
 import HomeScreen from './components/HomeScreen.vue'
 import ShowsScreen from './components/ShowsScreen.vue'
 import BugButton from './components/BugButton.vue'
@@ -27,6 +27,10 @@ onMounted(async () => {
       return
     }
   }
+  // Whoever was signed in here last time goes straight to their shows;
+  // Firebase Auth confirms (or sends them back to sign in) in the
+  // background. Only a browser that has never signed in sees "Warming up…".
+  startFromCache()
   watchAuth((user) => {
     store.authReady = true
     if (user) void loadForUser(user)

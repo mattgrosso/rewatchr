@@ -5,8 +5,12 @@
 
 import { initializeApp } from 'firebase/app'
 import {
-  getAuth,
+  browserLocalPersistence,
+  browserPopupRedirectResolver,
+  browserSessionPersistence,
   GoogleAuthProvider,
+  indexedDBLocalPersistence,
+  initializeAuth,
   onAuthStateChanged,
   signInAnonymously,
   signInWithPopup,
@@ -23,7 +27,16 @@ const CONFIG = {
 }
 
 const app = initializeApp(CONFIG)
-const auth = getAuth(app)
+// initializeAuth rather than getAuth (2026-11-05, "why is there a Warming
+// up screen?"): getAuth also wires in the popup/redirect machinery, which
+// makes Auth fetch Google's iframe helper at startup and slows down the
+// "who is signed in?" answer, most of all on iPhone Safari. Here the
+// machinery is handed to signInWithPopup only, so it loads when the button
+// is tapped. The persistence list is getAuth's own, in getAuth's order, so
+// anyone already signed in stays signed in.
+const auth = initializeAuth(app, {
+  persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence],
+})
 const db = getDatabase(app)
 
 // An anonymous session is NOT a Rewatchr user - it exists only so a
@@ -40,7 +53,7 @@ export const watchAuth = (onUser) => {
 }
 
 export const signInWithGoogle = async () => {
-  const result = await signInWithPopup(auth, new GoogleAuthProvider())
+  const result = await signInWithPopup(auth, new GoogleAuthProvider(), browserPopupRedirectResolver)
   return toUser(result.user)
 }
 

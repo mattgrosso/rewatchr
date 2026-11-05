@@ -31,6 +31,11 @@ Live at **https://rewatchr-85473.web.app** (Firebase Hosting).
   images from `public/launch/` (kept out of the service worker precache),
   drawn by `scripts/generate-launch-images.mjs`, which prints the `<link>`
   tags. Re-run it if the icon, name or background changes.
+- **No "Warming up…" wait** (2026-11-05): the last signed-in user is
+  remembered (`rewatchr.lastUser`), so the app opens straight onto their
+  cached shows while Firebase Auth confirms in the background; nothing is
+  pushed to the database until it does. Auth is set up with
+  `initializeAuth` so the popup machinery loads only when signing in.
 
 ## Running it signed in (dev)
 
